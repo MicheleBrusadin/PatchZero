@@ -33,7 +33,7 @@ if __name__ == "__main__":
     parser.add_argument('--max_iteration', type=int, default=1000, help="max iteration")
     parser.add_argument('--target', type=int, default=859, help="target label")
     parser.add_argument('--epochs', type=int, default=20, help="total epoch")
-    parser.add_argument('--data_dir', type=str, default='C:/Users/miche/OneDrive/Desktop/UT/Courses/Deep Learning/Project/Adversarial_Patch_Attack/datasets/imgNet/imagenet1k_valid_dataset', help="dir of the dataset")
+    parser.add_argument('--data_dir', type=str, default='datasets\imgNet\imagenet1k_valid_dataset', help="dir of the dataset")
 
     
 
@@ -163,7 +163,7 @@ if __name__ == "__main__":
                     original_prediction=original_prediction.item(),
                     patched_prediction=patched_prediction.item(),
                     class_names=train_loader.dataset.classes,
-                    output_path=f"training_pictures/epoch_{epoch}_sample_{idx}.png",
+                    output_path=f"training_pictures/epoch_im/epoch_{epoch}_sample_{idx}.png",
                     )
         mean, std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
         
