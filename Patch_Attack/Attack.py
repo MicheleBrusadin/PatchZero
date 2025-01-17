@@ -27,7 +27,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_workers', type=int, default=2, help="num_workers")
     parser.add_argument('--train_size', type=int, default=800, help="number of training images")
     parser.add_argument('--test_size', type=int, default=200, help="number of test images")
-    parser.add_argument('--noise_percentage', type=float, default=0.1, help="percentage of the patch size compared with the image size")
+    parser.add_argument('--noise_percentage', type=float, default=0.03, help="percentage of the patch size compared with the image size")
     parser.add_argument('--probability_threshold', type=float, default=0.9, help="minimum target probability")
     parser.add_argument('--lr', type=float, default=1.0, help="learning rate")
     parser.add_argument('--max_iteration', type=int, default=1000, help="max iteration")
@@ -42,8 +42,8 @@ if __name__ == "__main__":
     parser.add_argument('--log_dir', type=str, default='patch_attack_log.csv', help='dir of the log')
     args = parser.parse_args()
 
-# visualize the patch efffect on the model
-    def visualize_patch_effect(image, patched_image, original_prediction, patched_prediction, class_names, output_path):
+    # visualize the patch efffect on the model
+    def visualize_patch_effect(image, patched_image, original_prediction, patched_prediction, class_names, output_path_original, output_path_patched):
         """
         Visualize and save the effect of an adversarial patch on an image.
         """
@@ -58,19 +58,9 @@ if __name__ == "__main__":
         original_image = to_pil_image(image)
         patched_image = to_pil_image(patched_image)
 
-        # Plot the images
-        fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-        axes[0].imshow(original_image)
-        axes[0].set_title(f"Original\nPrediction: {class_names[original_prediction]}")
-        axes[0].axis("off")
-
-        axes[1].imshow(patched_image)
-        axes[1].set_title(f"With Patch\nPrediction: {class_names[patched_prediction]}")
-        axes[1].axis("off")
-
-        plt.tight_layout()
-        plt.savefig(output_path)  # Save the figure
-        plt.close(fig)  # Close the figure to prevent memory issues
+        # Save the original and patched images separately
+        original_image.save(output_path_original)
+        patched_image.save(output_path_patched)
 
     def denormalize(image, mean, std):
         mean = torch.tensor(mean).view(3, 1, 1).to(image.device)
@@ -96,10 +86,10 @@ if __name__ == "__main__":
             per_image = per_image.cuda()
             output = model(per_image)
             target_log_softmax = torch.nn.functional.log_softmax(output, dim=1)[0][target]
-            target_log_softmax.backward()
-            patch_grad = perturbated_image.grad.clone().cpu()
+            target_log_softmax.backward() # Calculate the gradient, backward pass
+            patch_grad = perturbated_image.grad.clone().cpu() # Get the gradient of the patch, so to adjust and increase target probability
             perturbated_image.grad.data.zero_()
-            applied_patch = lr * patch_grad + applied_patch.type(torch.FloatTensor)
+            applied_patch = lr * patch_grad + applied_patch.type(torch.FloatTensor) # Update the patch
             applied_patch = torch.clamp(applied_patch, min=-3, max=3)
             # Test the patch
             perturbated_image = torch.mul(mask.type(torch.FloatTensor), applied_patch.type(torch.FloatTensor)) + torch.mul((1-mask.type(torch.FloatTensor)), image.type(torch.FloatTensor))
@@ -145,7 +135,7 @@ if __name__ == "__main__":
             label = label.cuda()
             output = model(image)
             _, original_prediction  = torch.max(output.data, 1)
-            if original_prediction[0] != label and original_prediction[0].data.cpu().numpy() != args.target:
+            if  original_prediction[0].data.cpu().numpy() != args.target: # removed to use also correct predictions original_prediction[0] != label                
                 train_actual_total += 1
                 applied_patch, mask, x_location, y_location = mask_generation(args.patch_type, patch, image_size=(3, 224, 224))
                 perturbated_image, applied_patch = patch_attack(image, applied_patch, mask, args.target, args.probability_threshold, model, args.lr, args.max_iteration)
@@ -154,17 +144,20 @@ if __name__ == "__main__":
                 _, patched_prediction = torch.max(output.data, 1)
                 if patched_prediction[0].data.cpu().numpy() == args.target:
                     train_success += 1
-                patch = applied_patch[0][:, x_location:x_location + patch.shape[1], y_location:y_location + patch.shape[2]]
-                 # Visualize one example
-            if train_actual_total>0:  # Visualize the first image of each epoch
-                visualize_patch_effect(
-                    image=image.clone().detach(),  # Use the original image
-                    patched_image=perturbated_image.clone().detach(),  # Use the patched image
+                    #save original and successful patched images 
+                    visualize_patch_effect(
+                    image=image,  # Use the original image
+                    patched_image=perturbated_image,  # Use the patched image
                     original_prediction=original_prediction.item(),
                     patched_prediction=patched_prediction.item(),
                     class_names=train_loader.dataset.classes,
-                    output_path=f"training_pictures/epoch_im/epoch_{epoch}_sample_{idx}.png",
+                    output_path_original=f"training_pictures/original/epoch_{epoch}_sample_{idx}.png",
+                    output_path_patched=f"training_pictures/patched/epoch_{epoch}_sample_{idx}.png",
                     )
+                patch = applied_patch[0][:, x_location:x_location + patch.shape[1], y_location:y_location + patch.shape[2]]
+                 
+             
+               
         mean, std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
         
 
