@@ -1,0 +1,11 @@
+PatchZero paper uses PSPNet.
+
+Equally mixing attack images and begign images. 
+
+train model with PSPNet: cross entropy loss and two auxiliary loss terms. 
+
+morphological dilation, as some pixels at the border are not correctly detected. 
+
+PSPNet: https://openaccess.thecvf.com/content_cvpr_2017/papers/Zhao_Pyramid_Scene_Parsing_CVPR_2017_paper.pdf
+
+https://github.com/hszhao/PSPNet
