@@ -6,3 +6,8 @@ datasets/
 training_pictures/
 # ignore Papers
 Papers/
+# ignore 
+Defense/trainingdata/original
+Defense/trainingdata/patched
+Defense/trainingdata/segmentationmap
+Defense/trainingdata/splitdata
