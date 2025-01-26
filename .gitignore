@@ -3,6 +3,6 @@ data/
 # ignore data images patch attack
 datasets/
 # ignore training pictures of patch attack
-training_pictures/
+training_pictures*/
 # ignore Papers
 Papers/

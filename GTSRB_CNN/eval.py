@@ -42,7 +42,7 @@ def main():
                   loss_weights={"classification": 5, "regression": 1})
 
     # load pre trained weights
-    model.load_weights("weights.h5")
+    model.load_weights("weights/weights.h5")
 
     # evaluate test data
     img, rois, label = load_data("data/test.npy")
