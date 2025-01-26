@@ -6,6 +6,8 @@ datasets/
 training_pictures/
 # ignore Papers
 Papers/
+# ignore .venv
+.venv/
 # ignore 
 Defense/trainingdata/original
 Defense/trainingdata/patched
