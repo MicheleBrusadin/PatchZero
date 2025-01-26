@@ -41,17 +41,17 @@ if __name__ == "__main__":
     parser.add_argument('--test_size', type=int, default=30, help="number of test images")
     parser.add_argument('--noise_percentage', type=float, default=0.1, help="percentage of the patch size compared with the image size")
     parser.add_argument('--probability_threshold', type=float, default=0.9, help="minimum target probability")
-    parser.add_argument('--lr', type=float, default=1.0, help="learning rate")
+    parser.add_argument('--lr', type=float, default=1, help="learning rate")
     parser.add_argument('--max_iteration', type=int, default=1000, help="max iteration")
     parser.add_argument('--target', type=int, default=30, help="target label")
-    parser.add_argument('--epochs', type=int, default=20, help="total epoch")
+    parser.add_argument('--epochs', type=int, default=1, help="total epoch")
     parser.add_argument('--data_dir', type=str, default='data', help="dir of the dataset")
 
     
 
     parser.add_argument('--patch_type', type=str, default='rectangle', help="type of the patch")
     parser.add_argument('--GPU', type=str, default='0', help="index pf used GPU")
-    parser.add_argument('--log_dir', type=str, default='patch_attack_log.csv', help='dir of the log')
+    parser.add_argument('--log_dir', type=str, default='train.csv', help='dir of the log')
     args = parser.parse_args()
 
     # visualize the patch effect on the model
@@ -67,11 +67,10 @@ if __name__ == "__main__":
         mean = np.array([0.3337, 0.3064, 0.3171])  # Mean values for R, G, B channels
         std  = np.array([0.2672, 0.2564, 0.2629])  # Standard deviation values for R, G, B channels
     	# save the patched image as a tensor
-        tf.io.write_file('image_tensor.tfrecord', tf.io.serialize_tensor(patched_image))
+
         
 
-        #save he patched image as a numpy array
-        np.save('patched_image.npy', patched_image.numpy().squeeze(0))
+
         
 
         # this conversion to png is not working
@@ -104,10 +103,13 @@ if __name__ == "__main__":
         image = tf.squeeze(image).numpy()
 
         # Ensure proper value range before scaling
-        # image = np.clip(image, 0, 1)
+
+        image = np.clip(image * 255, 0, 255).astype(np.uint8) #de-normalize
+        
+        
 
         # Convert to 0-255 and uint8 format
-        image = (image * 255.0).round().astype(np.uint8)
+        # image = (image * 255.0).round().astype(np.uint8)
     
         return image
 
@@ -155,7 +157,7 @@ if __name__ == "__main__":
                 
 
                 perturbated_image = tf.multiply(mask, applied_patch) + tf.multiply(1 - mask, image)
-                perturbated_image = tf.clip_by_value(perturbated_image, -3.0, 3.0)  # Clamp to valid range
+                perturbated_image = tf.clip_by_value(perturbated_image, 0, 1)  # Clamp to valid range
                 
 
                 # Forward pass through the model
@@ -165,15 +167,16 @@ if __name__ == "__main__":
 
             # Compute gradients of the loss with respect to the patch
             patch_grad = tape.gradient(target_log_softmax, applied_patch)
+            patch_grad = patch_grad / (tf.norm(patch_grad) + 1e-7)
 
             # Update the patch using the gradient
             applied_patch += lr * patch_grad
-            applied_patch = tf.clip_by_value(applied_patch, -3.0, 3.0)  # Clamp to valid range
+            applied_patch = tf.clip_by_value(applied_patch, 0, 1)  # Clamp to valid range
 
             # Test the patch
 
             perturbated_image = tf.multiply(mask, applied_patch) + tf.multiply(1 - mask, image)
-            perturbated_image = tf.clip_by_value(perturbated_image, -3.0, 3.0)
+            perturbated_image = tf.clip_by_value(perturbated_image, 0, 1)
 
             # Compute target class probability
             classification_output, detection_output = model(perturbated_image, training=False)
@@ -221,7 +224,7 @@ if __name__ == "__main__":
 
     with open(args.log_dir, 'w') as f:
         writer = csv.writer(f)
-        writer.writerow(["epoch", "train_success", "test_success"])
+        writer.writerow(["ClassID", "Original_pred", "Patched_pred", "Path"])
 
     best_patch_epoch, best_patch_success_rate = 0, 0
 
@@ -231,8 +234,8 @@ if __name__ == "__main__":
 
         for idx, (image, label,*_) in enumerate(train_loader):
             print(idx)
-            if idx == 150:
-                break
+            print(label.numpy()[0])
+            
             train_total += label.shape[0]
             
             assert image.shape[0] == 1, "Only one picture should be loaded at a time."
@@ -263,27 +266,28 @@ if __name__ == "__main__":
                 # Forward pass with the perturbed image
                 classification_output, detection_output  = model(perturbated_image, training=False)
                 patched_prediction = tf.argmax(classification_output , axis=1)
-                print("Patched Prediction:", patched_prediction)
-                
-
-
-                
-                   
+                print(original_prediction.numpy()[0])
+                print("Patched Prediction:", patched_prediction.numpy()[0])
 
                 if patched_prediction.numpy()[0] == args.target:
                     train_success += 1
-                    #save original and successful patched images 
-
-                    
-                    if epoch ==0:
-                        visualize_patch_effect(
+                # save images
+                visualize_patch_effect(
                         image=image,  # Use the original image
                         patched_image=perturbated_image,  # Use the patched image
                     
-                        output_path_original=f"training_pictures_GTSRB/original/epoch_{epoch}_sample_{idx}.png",
-                        output_path_patched=f"training_pictures_GTSRB/patched/epoch_{epoch}_sample_{idx}.png",
+                        output_path_original=f"training_pictures_GTSRB/original/{idx}.png",
+                        output_path_patched=f"training_pictures_GTSRB/patched/{idx}.png",
                         )
-                
+                # save csv file
+
+                with open(args.log_dir, 'a',newline='') as f:
+                    writer = csv.writer(f)
+
+                    # Write a new row in each iteration
+                    writer.writerow([label.numpy()[0], original_prediction.numpy()[0], patched_prediction.numpy()[0], f"{idx}.png"])
+
+
                 patch_shape = tf.shape(patch)
                 # print("Patch shape:", patch_shape)
                 x_location_end = x_location + patch_shape[0]
@@ -297,8 +301,8 @@ if __name__ == "__main__":
        
         mean = [0.3337, 0.3064, 0.3171]  # Mean values for R, G, B channels
         std  = [0.2672, 0.2564, 0.2629]  # Standard deviation values for R, G, B channels
-
-
+print("train_success", train_success)
+print("train_actual_total", train_actual_total)
     #     # plt.imshow(np.clip(np.transpose(patch, (1, 2, 0)) * std + mean, 0, 1))
     #     plt.savefig("training_pictures/" + str(epoch) + " patch.png")
     #     print("Epoch:{} Patch attack success rate on trainset: {:.3f}%".format(epoch, 100 * train_success / train_actual_total))

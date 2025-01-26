@@ -12,7 +12,7 @@ def patch_initialization(patch_type='rectangle', image_size=(30, 30, 3), noise_p
     if patch_type == 'rectangle':
         mask_length = int((noise_percentage * image_size[0] * image_size[1])**0.5)
         # print("Mask length:", mask_length)
-        patch = np.random.rand(mask_length, mask_length,image_size[2])
+        patch = np.random.rand(mask_length, mask_length,image_size[2]).astype(np.float32)
     return patch
 
 # Generate the mask and apply the patch
@@ -33,10 +33,10 @@ def mask_generation(mask_type='rectangle', patch=None, image_size=(30, 30, 3)):
         x_location, y_location = np.random.randint(low=0, high=image_size[0]-patch.shape[0]), np.random.randint(low=0, high=image_size[1]-patch.shape[1])
         # print("Patch shape:", patch.shape)  # Should match applied_patch slice shape
         # print("Applied patch target slice shape:", applied_patch[x_location:x_location + patch.shape[0], y_location:y_location + patch.shape[1],:].shape)
-        for i in range(patch.shape[2]):
-            applied_patch[ x_location:x_location + patch.shape[0], y_location:y_location + patch.shape[1],:] = patch
-    mask = applied_patch.copy()
-    mask[mask != 0] = 1.0
+        
+        applied_patch[ x_location:x_location + patch.shape[0], y_location:y_location + patch.shape[1],:] = patch
+    mask = np.zeros_like(applied_patch)
+    mask[x_location:x_location + patch.shape[0], y_location:y_location + patch.shape[1], :] = 1.0
     return applied_patch, mask, x_location, y_location
 
 # Test the patch on dataset
