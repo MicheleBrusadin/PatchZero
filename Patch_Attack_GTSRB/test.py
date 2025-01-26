@@ -34,12 +34,14 @@ if __name__ == "__main__":
     # image = cv2.resize(image, img_size)  # Resize to expected model input size
     image = tf.convert_to_tensor(image, dtype=tf.float32) # Normalize to match model input expectations
     image = np.expand_dims(image, axis=0)  # Add batch dimension
+
+    # Load the image tensor ( this works)
     raw_tensor = tf.io.read_file('image_tensor.tfrecord')
     loaded_tensortf = tf.io.parse_tensor(raw_tensor, out_type=tf.float32)
     
 
 
-
+    
     # loaded_array = np.load('patched_image.npy')
 
     # Convert back to TensorFlow tensor and add batch dimension
