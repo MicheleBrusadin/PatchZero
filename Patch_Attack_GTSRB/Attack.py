@@ -185,6 +185,7 @@ def main():
     # Lists to store success rates over epochs (for plotting)
     train_success_rates = []
     test_success_rates = []
+    succesfully_attacked_images = set()
 
     for epoch in range(args.epochs):
         tqdm.write(f"=== Epoch {epoch} ===")
@@ -195,6 +196,11 @@ def main():
 
         # Use tqdm for a progress bar over the training images
         for idx in tqdm(range(len(train_images)), desc="Training images"):
+
+            # Check if the image was succesfully attacked already
+            if idx in succesfully_attacked_images:
+                continue
+
             image = train_images[idx]
             image = image.astype(np.float32)
 
@@ -238,7 +244,7 @@ def main():
                         visualize_patch_effect(
                             image=image_tf,
                             patched_image=perturbed_image_tf,
-                            idx=f"{epoch}_{idx}"
+                            idx=f"{idx}"
                         )
                         saved_example = True
 
@@ -252,6 +258,14 @@ def main():
                     # Update the global patch from the final patch region
                     ph, pw, _ = patch.shape
                     patch = final_patch[x_loc:x_loc + ph, y_loc:y_loc + pw, :]
+
+                    # Add the image to the set of succesfully attacked images
+                    succesfully_attacked_images.add(idx)
+
+                    # Check if all images were succesfully attacked
+                    if len(succesfully_attacked_images) == len(train_images):
+                        tqdm.write('All images were succesfully attacked. Stopping training.')
+                        break
 
         # Print success rate for this epoch
         epoch_success_rate = (train_success / train_total) * 100 if train_total > 0 else 0.0
