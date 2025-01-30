@@ -5,7 +5,7 @@ import tensorflow as tf
 from sklearn.metrics import classification_report
 
 from data_pre_proc import load_data
-from train import get_model, r2_keras
+from Train import get_model, r2_keras
 
 tf.compat.v1.enable_eager_execution()
 from tensorflow.keras.losses import SparseCategoricalCrossentropy

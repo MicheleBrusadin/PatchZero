@@ -25,7 +25,7 @@ def resize_bbox(row, img_size):
     return x0, y0, x1, y1
 
 
-def read_data(df, filename, img_size=(30, 30), min_size=None, data_dir='datasets', save_dir='data'):
+def read_data(df, filename, img_size=(30, 30), min_size=None, data_dir='datasets', save_dir='output'):
     """
     Read and preprocess GTSRB images and bboxes and save ndarrays to disk.
 
@@ -103,7 +103,7 @@ def read_data(df, filename, img_size=(30, 30), min_size=None, data_dir='datasets
     return images, bbox, labels
 
 
-def plot_class_stats(class_stats, filename, save_dir='data'):
+def plot_class_stats(class_stats, filename, save_dir='output'):
     """
     Create and save a stacked bar chart showing the number of skipped, upscaled,
     and downscaled images per class.
@@ -151,14 +151,17 @@ def load_data(path):
     return images, bbox, labels
 
 
+def data_pre_proc_main(data_dir='../datasets/original/gtsrb', train_csv_filename='Train.csv',
+                       test_csv_filename='Test.csv', save_dir='../data',
+                       img_size=(100, 100), min_size=(40, 40), train_filename='train.npy', test_filename='test.npy'):
+    train = pd.read_csv(f'{data_dir}/{train_csv_filename}')
+    test = pd.read_csv(f'{data_dir}/{test_csv_filename}')
+
+    read_data(train, filename=train_filename, img_size=img_size, min_size=min_size,
+              data_dir=data_dir, save_dir=save_dir)
+    read_data(test, filename=test_filename, img_size=img_size, min_size=min_size,
+              data_dir=data_dir, save_dir=save_dir)
+
+
 if __name__ == '__main__':
-    train = pd.read_csv('../datasets/original/gtsrb/Train.csv')
-    test = pd.read_csv('../datasets/original/gtsrb/Test.csv')
-
-    img_size = (100, 100)
-    min_size = (40, 40)
-
-    read_data(train, filename='train.npy', img_size=img_size, min_size=min_size,
-              data_dir='../datasets/original/gtsrb', save_dir='../data')
-    read_data(test, 'test.npy', img_size=img_size, min_size=min_size,
-              data_dir='../datasets/original/gtsrb', save_dir='../data')
+    data_pre_proc_main()

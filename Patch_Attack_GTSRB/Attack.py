@@ -14,9 +14,9 @@ import cv2
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from patch_utils import *
-from utils import *
-from GTSRB_CNN.train import get_model, r2_keras
+from Patch_Attack_GTSRB.patch_utils import *
+from Patch_Attack_GTSRB.utils import *
+from GTSRB_CNN.Train import get_model, r2_keras
 
 
 def preprocess_and_denormalize(image):
@@ -130,7 +130,8 @@ def patch_attack(image, applied_patch, mask, target, probability_threshold, mode
     return perturbed_image, final_patch
 
 
-def main():
+def attack_main(image_size=(100, 100), train_path='../data/train.npy', test_path='../data/test.npy',
+                weights_path='../GTSRB_CNN/result.weights.h5', save_dir='output'):
     # Parse the arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch_size', type=int, default=1, help="batch size")
@@ -150,7 +151,7 @@ def main():
     os.environ["CUDA_VISIBLE_DEVICES"] = args.GPU
 
     # Load the model
-    model = get_model((100, 100))
+    model = get_model(image_size)
     loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     model.compile(
         optimizer="adam",
@@ -158,14 +159,13 @@ def main():
         metrics={"classification": "acc", "regression": r2_keras},
         loss_weights={"classification": 5, "regression": 1}
     )
-    weights_file_name = 'result.weights.h5'
-    weights_path = f'../GTSRB_CNN/{weights_file_name}'
+
     model.load_weights(weights_path)
-    tqdm.write(f'Model loaded with weights from "{weights_file_name}"')
+    tqdm.write(f'Model loaded with weights from "{weights_path.split("/")[-1]}"')
 
     # Load the datasets
-    train_images = np.load("../data/train.npy")
-    test_images = np.load("../data/test.npy")
+    train_images = np.load(train_path)
+    test_images = np.load(test_path)
 
     # Initialize the patch
     patch = patch_initialization(
@@ -178,7 +178,7 @@ def main():
     # Prepare CSV logging
     with open(args.log_dir, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(["ClassID", "Original_pred", "Patched_pred", "Original_path", "Patched_path"])
+        writer.writerow(["ClassID", "Original_pred", "Patched_pred", "Mask_path", "Patched_path", "Train/Test"])
 
     best_patch_epoch, best_patch_success_rate = 0, 0
 
@@ -186,6 +186,19 @@ def main():
     train_success_rates = []
     test_success_rates = []
     succesfully_attacked_images = set()
+
+    # Create output directories
+    output_train_dir = os.path.join(save_dir, 'train')
+    test_train_dir = os.path.join(save_dir, 'test')
+    output_train_image_dir = os.path.join(output_train_dir, 'images')
+    output_train_mask_dir = os.path.join(output_train_dir, 'masks')
+    output_test_image_dir = os.path.join(test_train_dir, 'images')
+    output_test_mask_dir = os.path.join(test_train_dir, 'masks')
+
+    os.makedirs(output_train_image_dir, exist_ok=True)
+    os.makedirs(output_train_mask_dir, exist_ok=True)
+    os.makedirs(output_test_image_dir, exist_ok=True)
+    os.makedirs(output_test_mask_dir, exist_ok=True)
 
     for epoch in range(args.epochs):
         tqdm.write(f"=== Epoch {epoch} ===")
@@ -248,23 +261,28 @@ def main():
                         )
                         saved_example = True
 
+                    # Save image and mask to output directories
+                    output_train_image_path = f"{output_train_image_dir}/patched_{idx}.png"
+                    output_train_mask_path = f"{output_train_mask_dir}/mask_{idx}.png"
+                    cv2.imwrite(output_train_image_path, preprocess_and_denormalize(perturbed_image_tf))
+                    cv2.imwrite(output_train_mask_path, preprocess_and_denormalize(mask))
+
                     # Log to CSV
                     with open(args.log_dir, 'a', newline='') as f:
                         writer = csv.writer(f)
-                        original_path = f"output/original_{idx}.png"
-                        patched_path = f"output/patched_{idx}.png"
-                        writer.writerow([idx, original_prediction, patched_prediction, original_path, patched_path])
+                        writer.writerow([idx, original_prediction, patched_prediction,
+                                         output_train_mask_path, output_train_image_path, "Train"])
 
                     # Update the global patch from the final patch region
                     ph, pw, _ = patch.shape
                     patch = final_patch[x_loc:x_loc + ph, y_loc:y_loc + pw, :]
 
-                    # Add the image to the set of succesfully attacked images
+                    # Add the image to the set of successfully attacked images
                     succesfully_attacked_images.add(idx)
 
-                    # Check if all images were succesfully attacked
+                    # Check if all images were successfully attacked
                     if len(succesfully_attacked_images) == len(train_images):
-                        tqdm.write('All images were succesfully attacked. Stopping training.')
+                        tqdm.write('All images were successfully attacked. Stopping training.')
                         break
 
         # Print success rate for this epoch
@@ -305,11 +323,9 @@ def main():
         # Log generation or analytics if desired
         log_generation(args.log_dir)
 
-        # Track best patch if needed
         if test_rate > best_patch_success_rate:
             best_patch_success_rate = test_rate
             best_patch_epoch = epoch
-            # Save best patch if needed
 
     print(
         f"Best patch found at epoch {best_patch_epoch} "
@@ -318,4 +334,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    attack_main()

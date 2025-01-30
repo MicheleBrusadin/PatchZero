@@ -12,7 +12,7 @@ if __name__ == "__main__":
     
     
     import os
-    from GTSRB_CNN.train import get_model, r2_keras
+    from GTSRB_CNN.Train import get_model, r2_keras
     
     import tensorflow as tf
     from tensorflow.keras.losses import SparseCategoricalCrossentropy

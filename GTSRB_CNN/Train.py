@@ -3,7 +3,7 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import os
 
-from data_pre_proc import load_data
+from GTSRB_CNN.data_pre_proc import load_data
 
 tf.compat.v1.enable_eager_execution()
 from tensorflow.compat.v1 import ConfigProto, InteractiveSession
@@ -19,6 +19,7 @@ from tensorflow.keras import backend as keras_be
 config = ConfigProto()
 config.gpu_options.allow_growth = True
 session = InteractiveSession(config=config)
+
 
 def get_model(img_size=(30, 30)):
     """
@@ -48,6 +49,7 @@ def get_model(img_size=(30, 30)):
                 kernel_initializer=RandomNormal(), kernel_regularizer=l2(0.1))(do3)
 
     return Model(inputs=input_layer, outputs=[cf, reg])
+
 
 def plot_training(history, filename='training.png', save_dir='data'):
     # Create four side-by-side subplots
@@ -101,15 +103,13 @@ def r2_keras(y_true, y_pred):
     return 1 - ss_res / (ss_tot + keras_be.epsilon())
 
 
-def main():
+def train_main(train_path='../data/train.npy', test_path='../data/test.npy', image_size=(100, 100),
+               weights_path='result.weights.h5', save_dir='../data'):
     # Load data
-    img, rois, label = load_data("../data/train.npy")
+    trainX, trainRoiY, trainLabelY = load_data(train_path)
+    testX, testRoiY, testLabelY = load_data(test_path)
 
-    trainX, testX, trainRoiY, testRoiY, trainLabelY, testLabelY = train_test_split(
-        img, rois, label, test_size=0.2, random_state=42
-    )
-
-    model = get_model((100, 100))
+    model = get_model(image_size)
 
     loss = SparseCategoricalCrossentropy(from_logits=True)
     model.compile(
@@ -129,10 +129,10 @@ def main():
         verbose=1
     )
 
-    model.save_weights("result.weights.h5")
+    model.save_weights(weights_path)
 
-    plot_training(history, filename='training.png', save_dir='../data')
+    plot_training(history, filename='training.png', save_dir=save_dir)
 
 
 if __name__ == '__main__':
-    main()
+    train_main()
