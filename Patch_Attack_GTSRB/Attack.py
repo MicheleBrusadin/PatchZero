@@ -17,6 +17,7 @@ from tqdm import tqdm
 from Patch_Attack_GTSRB.patch_utils import *
 from Patch_Attack_GTSRB.utils import *
 from GTSRB_CNN.Train import get_model, r2_keras
+from GTSRB_CNN.data_pre_proc import load_data
 
 
 def preprocess_and_denormalize(image):
@@ -165,7 +166,8 @@ def attack_main(image_size=(100, 100), train_path='../data/train.npy', test_path
 
     # Load the datasets
     train_images = np.load(train_path)
-    test_images = np.load(test_path)
+    # test_images = np.load(test_path)
+    test_images_temp = load_data(test_path)
 
     # Initialize the patch
     patch = patch_initialization(
@@ -292,8 +294,16 @@ def attack_main(image_size=(100, 100), train_path='../data/train.npy', test_path
 
         # Evaluate on the test set with the current patch
         test_success = 0
+        test_images, rois, test_labels = test_images_temp
         for idx in tqdm(range(len(test_images)), desc="Testing images"):
-            test_image, rois, test_label = test_images
+            test_image, roi, test_label = test_images[idx], rois[idx], test_labels[idx]
+
+            test_image = test_image.astype(np.float32)
+
+            # Forward pass (original) to get the current prediction
+            test_image_tf = tf.expand_dims(test_image, axis=0)
+            classification_output, _ = model(test_image_tf, training=False)
+            original_prediction = tf.argmax(classification_output, axis=1).numpy()[0]
 
             applied_patch, mask, _, _ = mask_generation(
                 args.patch_type, patch, (100, 100, 3)
@@ -317,11 +327,21 @@ def attack_main(image_size=(100, 100), train_path='../data/train.npy', test_path
             if patched_prediction != test_label:
                 test_success += 1
 
-        test_rate = (test_success / len(test_images)) * 100
-        tqdm.write(f"Epoch {epoch}: Patch attack success rate on test subset (fooling classifier): {test_rate:.2f}%")
+                # Save image and mask to output directories
+                output_test_image_path = f"{output_test_image_dir}/patched_{idx}.png"
+                output_test_mask_path = f"{output_test_mask_dir}/mask_{idx}.png"
+                cv2.imwrite(output_test_image_path, preprocess_and_denormalize(perturbed_image_tf))
+                cv2.imwrite(output_test_mask_path, preprocess_and_denormalize(mask))
 
-        # Log generation or analytics if desired
-        log_generation(args.log_dir)
+                # Log to CSV
+                with open(args.log_dir, 'a', newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerow([idx, original_prediction, patched_prediction,
+                                     output_test_mask_path, output_test_image_path, "Test"])
+
+        test_rate = (test_success / len(test_images)) * 100
+        test_success_rates.append(test_rate)
+        tqdm.write(f"Epoch {epoch}: Patch attack success rate on test subset (fooling classifier): {test_rate:.2f}%")
 
         if test_rate > best_patch_success_rate:
             best_patch_success_rate = test_rate
